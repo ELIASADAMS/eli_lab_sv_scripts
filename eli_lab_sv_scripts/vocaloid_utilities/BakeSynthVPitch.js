@@ -5,113 +5,57 @@ function getClientInfo() {
         name: SV.T(SCRIPT_TITLE),
         category: "eli_lab - VOCALOID Utilities",
         author: "eli_lab",
-        versionNumber: 2,
-        minEditorVersion: 0x020101
+        versionNumber: 3,
+        minEditorVersion: 67840
     };
-}
-
-function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-
-function findNote(notes, t) {
-    for (var i = 0; i < notes.length; i++) {
-        if (t >= notes[i].getOnset() && t <= notes[i].getEnd()) return notes[i];
-    }
-    for (var j = 0; j < notes.length; j++) {
-        if (notes[j].getOnset() > t) return j > 0 ? notes[j - 1] : notes[j];
-    }
-    return notes[notes.length - 1];
-}
-
-function clearPitchDelta(group, start, end) {
-    group.getParameter("pitchDelta").remove(start, end);
-}
-
-function removePitchControls(group) {
-    if (!group.getNumPitchControls) return;
-    for (var i = group.getNumPitchControls() - 1; i >= 0; i--) group.removePitchControl(i);
-}
-
-function capture(groupRef, group, notes, startLocal, endLocal, interval, retries, removeControls) {
-    var timeOffset = groupRef.getTimeOffset ? groupRef.getTimeOffset() : 0;
-    var pitchOffset = groupRef.getPitchOffset ? groupRef.getPitchOffset() : 0;
-    var startAbsolute = startLocal + timeOffset;
-    var frames = Math.max(2, Math.ceil((endLocal - startLocal) / interval) + 1);
-    var values = SV.getComputedPitchForGroup(groupRef, startAbsolute, interval, frames);
-
-    if (!values || values.length < 2) {
-        if (retries < 12) {
-            SV.setTimeout(180, function() {
-                capture(groupRef, group, notes, startLocal, endLocal, interval, retries + 1, removeControls);
-            });
-            return;
-        }
-        SV.showMessageBox(SV.T(SCRIPT_TITLE), "SynthV pitch data is not ready. Try again after playback or a moment of processing.");
-        SV.finish();
-        return;
-    }
-
-    // The computed pitch is absolute to the group reference. Convert it back
-    // to target-group Pitch Deviation, accounting for both time and pitch offsets.
-    clearPitchDelta(group, startLocal, endLocal);
-    if (removeControls) removePitchControls(group);
-
-    var auto = group.getParameter("pitchDelta");
-    for (var i = 0; i < values.length; i++) {
-        var absolute = startAbsolute + i * interval;
-        var local = absolute - timeOffset;
-        if (local < startLocal || local > endLocal) continue;
-        var note = findNote(notes, local);
-        if (!note) continue;
-        var basePitch = note.getPitch() + pitchOffset + (note.getDetune ? note.getDetune() / 100.0 : 0);
-        var cents = (values[i] - basePitch) * 100.0;
-        auto.add(Math.round(local), clamp(cents, -1200, 1200));
-    }
-
-    SV.showMessageBox(SV.T(SCRIPT_TITLE), "Baked " + values.length + " computed SynthV pitch samples into Pitch Deviation.");
-    SV.finish();
 }
 
 function main() {
     var editor = SV.getMainEditor();
-    var selection = editor.getSelection();
-    var notes = selection.getSelectedNotes();
+    var notes = editor.getSelection().getSelectedNotes();
+
     if (!notes.length) {
         SV.showMessageBox(SV.T(SCRIPT_TITLE), SV.T("Please select notes."));
         return;
     }
 
-    notes.sort(function(a,b){ return a.getOnset() - b.getOnset(); });
-    var groupRef = editor.getCurrentGroup();
-    var group = groupRef.getTarget();
-    if (!group) {
-        SV.showMessageBox(SV.T(SCRIPT_TITLE), "Open a note group before baking.");
-        return;
-    }
+    notes.sort(function(a, b) { return a.getOnset() - b.getOnset(); });
 
     var form = {
         title: SV.T(SCRIPT_TITLE),
-        message: "Capture SynthV's computed pitch, then freeze it as editable Pitch Deviation.",
+        message: "SynthV 1.11 can bake the generated Sing/Rap pitch by switching notes to Manual Mode. The generated curve is moved into Pitch Deviation and becomes editable/stable.",
         buttons: "OkCancel",
         widgets: [
-            { name: "source", type: "ComboBox", label: "Source", choices: ["Clean generated pitch", "Current pitch including Pitch Deviation"], default: 0 },
-            { name: "resolution", type: "ComboBox", label: "Resolution", choices: ["1/32", "1/24", "1/16", "1/12"], default: 2 },
-            { name: "controls", type: "ComboBox", label: "After baking", choices: ["Keep pitch controls", "Remove pitch controls"], default: 1 }
+            { name: "scope", type: "ComboBox", label: "Notes", choices: ["Selected notes", "Selected notes that are Auto"], default: 1 },
+            { name: "mode", type: "ComboBox", label: "After baking", choices: ["Keep Manual", "Force Manual"], default: 1 }
         ]
     };
     var r = SV.showCustomDialog(form);
     if (!r.status) return;
 
-    var interval = [SV.QUARTER / 32, SV.QUARTER / 24, SV.QUARTER / 16, SV.QUARTER / 12][parseInt(r.answers.resolution)];
-    var includeExisting = parseInt(r.answers.source) === 1;
-    var removeControlsAfter = parseInt(r.answers.controls) === 1;
-    var start = notes[0].getOnset();
-    var end = notes[notes.length - 1].getEnd();
+    var autoCount = 0;
+    var bakedCount = 0;
+    var onlyAuto = parseInt(r.answers.scope) === 1;
 
-    // Clean mode clears Pitch Deviation before asking SynthV for computed pitch.
-    // Current mode captures it first, then clears it before writing the frozen copy.
-    if (!includeExisting) clearPitchDelta(group, start, end);
+    for (var i = 0; i < notes.length; i++) {
+        var note = notes[i];
+        var isAuto = note.getPitchAutoMode();
+        if (isAuto) autoCount++;
+        if (onlyAuto && !isAuto) continue;
 
-    SV.setTimeout(250, function() {
-        capture(groupRef, group, notes, start, end, interval, 0, removeControlsAfter);
-    });
+        // Synthesizer V Studio 1.11's supported bake operation:
+        // switching Auto -> Manual moves the generated pitch curve into
+        // Pitch Deviation and stops future pitch regeneration.
+        note.setPitchAutoMode(false);
+        bakedCount++;
+    }
+
+    SV.showMessageBox(
+        SV.T(SCRIPT_TITLE),
+        "Baked " + bakedCount + " note(s) into Manual Mode / Pitch Deviation.\n\n" +
+        "Auto notes found: " + autoCount + "\n\n" +
+        "The resulting curve is now safe to process with the Pitch Baker or VOCALOID Tuning Lab."
+    );
+
+    SV.finish();
 }
