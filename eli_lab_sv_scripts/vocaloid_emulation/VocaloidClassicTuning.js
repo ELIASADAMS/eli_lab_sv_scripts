@@ -1,5 +1,5 @@
-var PROFILE={title:"VOCALOID Classic Tuning Emulator",category:"eli_lab - VOCALOID Emulation",attack:20,accent:10,vib:7,rate:2.4,onset:.38,irr:.16,fall:13};
-function getClientInfo(){return{name:SV.T(PROFILE.title),category:PROFILE.category,author:"eli_lab",versionNumber:3,minEditorVersion:65537}}
+var PROFILE={title:"VOCALOID Classic Tuning Emulator",category:"eli_lab - VOCALOID Tuning Lab",attack:20,accent:10,vib:7,rate:2.4,onset:.38,irr:.16,fall:13};
+function getClientInfo(){return{name:SV.T(PROFILE.title),category:PROFILE.category,author:"eli_lab",versionNumber:4,minEditorVersion:65537}}
 function C(v,a,b){return Math.max(a,Math.min(b,v))}function R(a,b){return a+Math.random()*(b-a)}function Q(a){return a[Math.floor(Math.random()*a.length)]}function P(a,t,v){a.add(Math.round(t),C(v,-1200,1200))}
 function particle(s){return ["は","が","を","に","へ","と","で","も","の","ね","よ","さ","ぞ","な","や"].indexOf(s)>=0}function weak(s){return ["っ","ー","ん","る","れ","ろ","す","つ","く","き"].indexOf(s)>=0}
 function I(ns,i){var n=ns[i],p=i?ns[i-1]:null,x=i+1<ns.length?ns[i+1]:null,l=n.getLyrics?n.getLyrics():"";return{n:n,d:n.getDuration(),prev:p?n.getPitch()-p.getPitch():0,next:x?x.getPitch()-n.getPitch():0,samePrev:!!p&&p.getPitch()===n.getPitch(),sameNext:!!x&&x.getPitch()===n.getPitch(),first:i===0,last:i===ns.length-1,particle:particle(l),weak:weak(l)}}
