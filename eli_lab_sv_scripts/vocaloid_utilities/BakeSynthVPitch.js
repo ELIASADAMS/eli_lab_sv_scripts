@@ -5,7 +5,7 @@ function getClientInfo() {
         name: SV.T(SCRIPT_TITLE),
         category: "eli_lab - VOCALOID Utilities",
         author: "eli_lab",
-        versionNumber: 1,
+        versionNumber: 2,
         minEditorVersion: 0x020101
     };
 }
@@ -31,16 +31,17 @@ function removePitchControls(group) {
     for (var i = group.getNumPitchControls() - 1; i >= 0; i--) group.removePitchControl(i);
 }
 
-function capture(groupRef, group, notes, startLocal, endLocal, interval, retries, includeExisting, removeControls) {
-    var offset = groupRef.getTimeOffset ? groupRef.getTimeOffset() : 0;
-    var startAbsolute = startLocal + offset;
+function capture(groupRef, group, notes, startLocal, endLocal, interval, retries, removeControls) {
+    var timeOffset = groupRef.getTimeOffset ? groupRef.getTimeOffset() : 0;
+    var pitchOffset = groupRef.getPitchOffset ? groupRef.getPitchOffset() : 0;
+    var startAbsolute = startLocal + timeOffset;
     var frames = Math.max(2, Math.ceil((endLocal - startLocal) / interval) + 1);
     var values = SV.getComputedPitchForGroup(groupRef, startAbsolute, interval, frames);
 
     if (!values || values.length < 2) {
         if (retries < 12) {
             SV.setTimeout(180, function() {
-                capture(groupRef, group, notes, startLocal, endLocal, interval, retries + 1, includeExisting, removeControls);
+                capture(groupRef, group, notes, startLocal, endLocal, interval, retries + 1, removeControls);
             });
             return;
         }
@@ -49,19 +50,19 @@ function capture(groupRef, group, notes, startLocal, endLocal, interval, retries
         return;
     }
 
-    // Capture first. Only after capture do we remove the source automation,
-    // preventing the newly baked pitch from being counted twice.
+    // The computed pitch is absolute to the group reference. Convert it back
+    // to target-group Pitch Deviation, accounting for both time and pitch offsets.
     clearPitchDelta(group, startLocal, endLocal);
     if (removeControls) removePitchControls(group);
 
     var auto = group.getParameter("pitchDelta");
     for (var i = 0; i < values.length; i++) {
         var absolute = startAbsolute + i * interval;
-        var local = absolute - offset;
+        var local = absolute - timeOffset;
         if (local < startLocal || local > endLocal) continue;
         var note = findNote(notes, local);
         if (!note) continue;
-        var basePitch = note.getPitch() + (note.getDetune ? note.getDetune() / 100.0 : 0);
+        var basePitch = note.getPitch() + pitchOffset + (note.getDetune ? note.getDetune() / 100.0 : 0);
         var cents = (values[i] - basePitch) * 100.0;
         auto.add(Math.round(local), clamp(cents, -1200, 1200));
     }
@@ -92,7 +93,7 @@ function main() {
         message: "Capture SynthV's computed pitch, then freeze it as editable Pitch Deviation.",
         buttons: "OkCancel",
         widgets: [
-            { name: "source", type: "ComboBox", label: "Source", choices: ["Current generated pitch", "Current pitch including Pitch Deviation"], default: 0 },
+            { name: "source", type: "ComboBox", label: "Source", choices: ["Clean generated pitch", "Current pitch including Pitch Deviation"], default: 0 },
             { name: "resolution", type: "ComboBox", label: "Resolution", choices: ["1/32", "1/24", "1/16", "1/12"], default: 2 },
             { name: "controls", type: "ComboBox", label: "After baking", choices: ["Keep pitch controls", "Remove pitch controls"], default: 1 }
         ]
@@ -106,12 +107,11 @@ function main() {
     var start = notes[0].getOnset();
     var end = notes[notes.length - 1].getEnd();
 
-    // To capture clean generated pitch, clear Pitch Deviation before the async
-    // computation. If the user explicitly wants the current result, capture it
-    // first and clear only after sampling.
+    // Clean mode clears Pitch Deviation before asking SynthV for computed pitch.
+    // Current mode captures it first, then clears it before writing the frozen copy.
     if (!includeExisting) clearPitchDelta(group, start, end);
 
     SV.setTimeout(250, function() {
-        capture(groupRef, group, notes, start, end, interval, 0, includeExisting, removeControlsAfter);
+        capture(groupRef, group, notes, start, end, interval, 0, removeControlsAfter);
     });
 }
