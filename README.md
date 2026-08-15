@@ -17,7 +17,7 @@ The scripts use the Studio 1.x scripting model available to this environment. In
 
 **Do not assume Studio 2.x pitch-control APIs are required.** The repository intentionally avoids Studio 2-only `PitchControlCurve`, `PitchControlPoint`, retake, phoneme-timing and computed-pitch APIs in its core 1.11 workflow.
 
-SynthV 1.x supports freezing AI-generated pitch by switching Sing/Rap notes to Manual Mode; the generated pitch is moved into Pitch Deviation and stops regenerating. That is the basis of **Bake SynthV Pitch**. citeturn2search0
+SynthV 1.x supports freezing AI-generated pitch by switching Sing/Rap notes to Manual Mode; the generated pitch is moved into Pitch Deviation and stops regenerating. That is the basis of **Bake SynthV Pitch**.
 
 ## Menu structure
 
@@ -119,7 +119,7 @@ Randomized pitch tools increasingly expose a seed so that a successful result ca
 
 ### 4. Preserve musical boundaries
 
-Pitch automation is stored as `pitchDelta` in cents. Automation supports point insertion, interpolation, range removal and point retrieval; the Pitch Baker tools use those operations rather than inventing a second curve representation. citeturn1search1
+Pitch automation is stored as `pitchDelta` in cents. The Pitch Baker tools operate directly on that automation rather than maintaining a separate curve representation.
 
 ### 5. Extreme is a feature
 
@@ -131,7 +131,7 @@ See **[SCRIPT_CATALOG.md](SCRIPT_CATALOG.md)** for the current inventory, known 
 
 ## Installation
 
-Synthesizer V Pro scans its scripts folder at startup and also provides **Scripts → Rescan**. The Studio 1.x manual documents the scripts-folder workflow. citeturn3search0
+Synthesizer V Pro scans its scripts folder at startup and also provides **Scripts → Rescan**.
 
 Keep the directory structure from this repository when copying the scripts so the source remains organized. The `category` returned by each script determines the visible menu family.
 
