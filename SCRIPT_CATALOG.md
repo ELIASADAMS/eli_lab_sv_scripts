@@ -4,7 +4,7 @@
 
 **Synthesizer V Studio Pro 1.11.0b1 / Synthesizer V Engine 2.8.1**
 
-This document is the working map of the repository. It is intentionally more practical than the README: what each family is for, what is safe, what is destructive, and what should be built next.
+This document is the working map of the repository: what each family is for, what is destructive, and what should be built next.
 
 ---
 
@@ -26,10 +26,10 @@ eli_lab
 │   └── flat notes → deliberate old-school VOCALOID grammar
 │
 └── VOCALOID Utilities
-    └── reset / bake / inspect / scale / offset / Japanese helpers
+    └── reset / bake / scale / offset / Japanese helpers
 ```
 
-The menu family is defined by each script's `category` field. The physical `vocaloid_emulation` directory is currently the source directory for the VOCALOID Tuning Lab scripts; it can be renamed later if the SynthV script scanner is confirmed to recurse into the new folder name on the target installation.
+The menu family is defined by each script's `category` field. The physical `vocaloid_emulation` directory is retained for compatibility with the existing script setup; its visible menu family is **eli_lab - VOCALOID Tuning Lab**.
 
 ---
 
@@ -37,9 +37,7 @@ The menu family is defined by each script's `category` field. The physical `voca
 
 ## Contour Engine
 
-**Purpose:** generate a complete artificial contour for selected notes.
-
-Current behavior:
+Generates a complete artificial contour for selected notes.
 
 - phrase-aware attacks
 - repeated-note instability
@@ -53,45 +51,29 @@ Current behavior:
 - explicit phrase-boundary mode
 - direction-aware gesture library
 - intensity envelope across a phrase
-- “one gesture per phrase” mode
-
----
+- one-gesture-per-phrase mode
 
 ## Gesture Engine
 
-**Purpose:** apply exactly one recognizable gesture to each selected note.
+Applies one recognizable gesture to each selected note.
 
-Current vocabulary:
-
-- Scoop Up
-- Scoop Down
-- Overshoot Up
-- Overshoot Down
-- Fall
-- Rise
+- Scoop Up / Down
+- Overshoot Up / Down
+- Fall / Rise
 - Crack
 - Kink
 
-Now supports:
-
-- deterministic seed
-- replacement mode
-- sparse / normal / dense point density
+Supports deterministic seed, replacement mode and sparse/normal/dense point density.
 
 ### Future
 
 - gesture selection based on melodic interval
 - gesture selection based on lyric class
-- “attack only” mode
-- “phrase ending only” mode
-
----
+- attack-only and phrase-ending-only modes
 
 ## Vibrato Engine
 
-**Purpose:** add vibrato selectively instead of putting oscillation on every note.
-
-Current model:
+Adds vibrato selectively instead of vibrating every note.
 
 ```text
 note
@@ -105,38 +87,21 @@ probability
 vibrato shape
 ```
 
-It protects:
+Protects particles, weak morae, short notes and large melodic jumps.
 
-- particles
-- weak morae
-- short notes
-- large melodic jumps
+Supports Smooth, Asymmetric, Broken and Mechanical shapes, Long Notes Only, deterministic seed and replacement mode.
 
-It supports:
+### Important fix
 
-- Smooth
-- Asymmetric
-- Broken
-- Mechanical
-- Long Notes Only
-- deterministic seed
-- replace-selected-note mode
-
-### Important bug fixed
-
-The previous `Long Notes Only` setting had zero probability because its coverage multiplier was `0`. It now behaves as a real forced coverage mode.
+The old Long Notes Only mode had zero probability because its coverage multiplier was `0`. It is now a real long-note-only mode.
 
 ### Future
 
-A separate **Vibrato Gate** utility is still desirable: remove vibrato-like regions without touching unrelated pitch accents.
-
----
+A separate **Vibrato Gate** utility should remove vibrato-like regions without destroying large accents and attacks.
 
 ## Decimation Engine
 
-**Purpose:** convert dense Pitch Deviation into sparse, editable geometry.
-
-Current pipeline:
+Converts dense Pitch Deviation into sparse editable geometry.
 
 ```text
 sample pitchDelta
@@ -152,23 +117,22 @@ optional angular / VOCALOID instability
 write sparse curve
 ```
 
-### Important bug fixed
+### Important fix
 
-The previous version could remove automation from unselected notes located between the first and last selected notes. It now splits the selection into contiguous runs per NoteGroup and processes only those runs.
+The previous implementation could erase automation belonging to unselected notes between the first and last selected note. It now splits the selection into contiguous runs per NoteGroup and processes only those runs.
 
 ### Future
 
-- event-aware decimation presets
-- “preserve vibrato” mode
-- “preserve attacks only” mode
-- “VOCALOID point rhythm” mode
-- visual point-count diagnostics
+- preserve-vibrato mode
+- preserve-attacks-only mode
+- VOCALOID point-rhythm mode
+- point-count diagnostics
 
 ---
 
 # 3. VOCALOID Tuning Lab
 
-This is the main experimental identity of the repository.
+The central experimental family. It is not an attempt to reconstruct proprietary historical source code; it is a behavioral model inspired by early VOCALOID tuning.
 
 ## Master: VOCALOID Tuning Lab
 
@@ -180,7 +144,7 @@ Models:
 - 2008 Emotional
 - **2008 Extreme**
 
-The goal is not historical source-code reconstruction. The goal is a convincing **behavioral vocabulary** inspired by early VOCALOID tuning:
+The vocabulary is intentionally artificial:
 
 - conspicuous attacks
 - angular overshoots
@@ -192,49 +156,17 @@ The goal is not historical source-code reconstruction. The goal is a convincing 
 
 ### 2008 Extreme
 
-This should remain the reference test preset.
+The reference laboratory mode. It should sound like a deliberately hand-tuned late-2000s vocal, not like a modern singer with a vintage filter.
 
-The target is:
-
-```text
-NOT
-"natural but slightly old"
-
-BUT
-"obviously hand-tuned by someone in 2008"
-```
-
-High intensity is therefore intentional.
-
-### Important safety improvement
+### Safety fix
 
 Clearing existing Pitch Deviation now operates on each selected note range instead of deleting the entire range between the first and last selected notes.
 
-### Future
-
-The master should eventually consume shared analysis functions from a common conceptual model:
-
-```text
-Mora / lyric analysis
-        ↓
-Phrase analysis
-        ↓
-Accent score
-        ↓
-Gesture score
-        ↓
-Vibrato score
-        ↓
-Era-specific renderer
-```
-
----
-
 ## VOCALOID Accent Engine
 
-**Purpose:** add accents without adding vibrato.
+Adds accents without vibrato.
 
-Current factors:
+Factors:
 
 - duration
 - melodic movement
@@ -244,41 +176,43 @@ Current factors:
 - weak morae
 - long-note weighting
 
-Supports:
+Shapes:
 
 - Rise-Fall
 - Snap
 - Overshoot
 - Broken
 - Fall-Then-Hit
-- particle policy
-- long-note policy
-- deterministic seed
-- replacement mode
 
-### Future
-
-The next major improvement should be **mora-level accent selection**, not more amplitude controls.
-
----
+Supports particle policy, long-note policy, deterministic seed and replacement mode.
 
 ## VOCALOID Inter-Note Accent
 
-**Purpose:** create expression **between** notes.
+Creates expression **between** notes rather than decorating every note interior.
 
-This is deliberately separate from the Accent Engine.
-
-It can create:
+Styles:
 
 - Scoop Into Next
 - Dip Between
 - Overshoot Next
 - Double Accent
-- Broken transition
+- Broken
 
-It only acts on selected adjacent notes in the same NoteGroup.
+Only selected adjacent notes in the same NoteGroup are paired.
 
-This is useful when a phrase already has acceptable note interiors but lacks the characteristic exaggerated **transition gesture**.
+## VOCALOID 2008 Extreme
+
+Standalone version of the extreme preset for quick repeatable access without opening the master model selector.
+
+Features:
+
+- Strong / Extreme / Maximum intensity
+- Sparse / Classic / Aggressive / Mechanical vibrato
+- deterministic seed
+- selected-range clearing
+- group-local neighbor analysis
+
+This is intended to be the first script to test when the goal is the screenshot aesthetic you have been developing.
 
 ---
 
@@ -286,9 +220,7 @@ This is useful when a phrase already has acceptable note interiors but lacks the
 
 ## Bake SynthV Pitch
 
-Targeted specifically at Studio 1.x.
-
-Workflow:
+Studio 1.x workflow:
 
 ```text
 Sing / Rap Auto pitch
@@ -300,9 +232,7 @@ SynthV moves generated pitch into Pitch Deviation
 Manual frozen curve
 ```
 
-This is the correct 1.x workflow and avoids Studio 2-only computed-pitch APIs.
-
----
+This deliberately avoids Studio 2-only computed-pitch and Pitch Control APIs.
 
 ## Pitch Reset Utility
 
@@ -312,22 +242,14 @@ Modes:
 - Pitch Deviation + Auto Mode
 - Auto Mode only
 
-The reset is note-range based so non-contiguous selections are safe.
-
----
+Reset is note-range based, so non-contiguous selections do not destroy the automation between selected notes.
 
 ## Japanese Mora Utility
 
-Purpose:
-
-- understand Japanese mora structure
-- support old VOCALOID-style syllabic treatment
-- split long notes according to mora units
-
-The parser should understand:
+Understands small-kana combinations and special morae such as:
 
 ```text
-きゃ  きゅ  きょ
+きゃ きゅ きょ
 しゃ しゅ しょ
 ちゃ ちゅ ちょ
 にゃ にゅ にょ
@@ -340,40 +262,35 @@ The parser should understand:
 ー
 ```
 
+It can analyze selected lyrics or split selected notes into morae with equal, weighted or front-loaded timing.
+
+### Fix
+
+Splitting now uses each selected note's actual parent NoteGroup instead of assuming that every selected note belongs to the current editor group.
+
 ### Future
 
-Expose a reusable conceptual analyzer for the VOCALOID Tuning Lab rather than maintaining particle/weak-mora lists independently in every script.
-
----
+Expose the mora classification as a shared conceptual layer for Accent Engine and the master Tuning Lab.
 
 ## Scale Pitch Deviation
 
-Workflow utility.
+Multiplies existing Pitch Deviation without changing note pitch.
 
-Examples:
+Useful values:
 
 ```text
-50%   → tame an extreme result
-100%  → unchanged
-150%  → push an acceptable result
-200%  → exaggerated
-300%  → destructive laboratory mode
+50%   tame
+100%  unchanged
+150%  push
+200%  exaggerated
+300%  destructive laboratory
 ```
 
-This is particularly useful because it lets the user explore intensity without regenerating a new random curve.
-
----
+The utility explicitly samples the range endpoints so interpolated curve sections are also transformed.
 
 ## Offset Pitch Deviation
 
-Adds or subtracts a constant number of cents from selected Pitch Deviation.
-
-Useful for:
-
-- shifting an entire stylized phrase
-- compensating for a voice change
-- pushing a curve above/below center
-- destructive robotic tuning experiments
+Adds/subtracts a constant number of cents. It also protects interpolated values at the range boundaries.
 
 ---
 
@@ -381,46 +298,25 @@ Useful for:
 
 ## Note Duplicator
 
-Now operates in the selected note's actual NoteGroup rather than assuming the current editor group.
+Now operates in the selected note's actual NoteGroup instead of assuming the current editor group.
 
-### Future
-
-- duplicate before / after
-- stack / arpeggiate mode
-- avoid-overlap mode
-- copy selected pitch automation with the clone
+Future: duplicate before/after, stack/arpeggiate mode, avoid-overlap mode, optional pitch-data copying.
 
 ## Randomize Note Lengths
 
-Now respects the actual next note in each NoteGroup and avoids the old `max(unit/2)` overlap mistake.
+Now respects the actual next note in each NoteGroup and avoids the old minimum-duration overlap mistake.
 
-### Future
-
-- deterministic seed
-- bias toward short / long
-- preserve legato
-- preserve phrase-final notes
+Future: deterministic seed, short/long bias, preserve legato and phrase-final notes.
 
 ## Randomize Pitch in Key
 
 Current major-scale randomizer.
 
-### Future
-
-- minor modes
-- Japanese pentatonic scales
-- chromatic probability
-- stay-near-original weighting
-- deterministic seed
+Future: minor modes, Japanese pentatonic scales, chromatic probability, stay-near-original weighting and deterministic seed.
 
 ## Split Note into N Pieces
 
-Now:
-
-- uses the selected note's actual parent group
-- preserves exact total duration
-- clones the source note where available
-- gives the final piece the remainder instead of losing rounded ticks
+Now uses the source note's actual parent group, preserves exact total duration and uses clones where available.
 
 ## Make Selected Notes Legato
 
@@ -434,24 +330,17 @@ Quantizes duration while protecting the next note onset.
 
 # 6. Next utilities worth building
 
-## High priority
-
 ### `VOCALOID Vibrato Gate`
 
 Remove vibrato-like oscillation while leaving large accents and attacks alone.
 
 ### `VOCALOID Phrase Boundary Accent`
 
-Accents only:
-
-- first note
-- last note
-- long phrase-final note
-- large interval entry
+Accent only first/last/long-final/large-entry notes.
 
 ### `Japanese Mora Accent Map`
 
-Show / classify:
+Classify:
 
 ```text
 CONTENT
@@ -462,11 +351,9 @@ NASAL
 GEMINATE
 ```
 
-and optionally use that classification to weight pitch gestures.
-
 ### `Pitch Deviation Copy / Paste`
 
-A production utility for moving a successful curve from one phrase to another.
+Move a successful curve from one phrase to another.
 
 ### `Pitch Deviation Normalize`
 
@@ -476,18 +363,16 @@ Normalize selected curves to a chosen peak range without changing their shape.
 
 # 7. Quality rules for future scripts
 
-Before adding a script, check:
-
-1. Does it operate only on the intended selection?
-2. Does it accidentally touch unselected notes?
-3. Does it use the note's own NoteGroup for neighbors?
-4. Does repeated execution produce destructive stacking unintentionally?
-5. Should it have a `Replace` option?
-6. If randomized, does it have a seed?
-7. Does it work on Studio 1.11.0b1?
-8. Does the visible menu category match the repository architecture?
-9. Does the script have a useful name rather than an implementation name?
-10. Is the destructive behavior obvious from the dialog?
+1. Operate only on the intended selection.
+2. Never erase unselected notes between selected notes.
+3. Use NoteGroup-local neighbors.
+4. Avoid accidental destructive stacking on repeated runs.
+5. Expose a Replace option when appropriate.
+6. Give randomized tools a seed.
+7. Stay compatible with Studio 1.11.0b1.
+8. Match the visible menu category to the architecture.
+9. Use a user-facing name rather than an implementation name.
+10. Make destructive behavior obvious in the dialog.
 
 ---
 
@@ -496,7 +381,7 @@ Before adding a script, check:
 ```text
 1. VOCALOID 2008 Extreme
 2. Accent / Inter-Note Accent intelligence
-3. Japanese Mora Analyzer
+3. Japanese Mora Analyzer / shared classifier
 4. Vibrato Gate
 5. Pitch Deviation Copy/Paste
 6. Pitch Deviation Normalize
@@ -505,6 +390,6 @@ Before adding a script, check:
 9. Historical preset refinement
 ```
 
-The guiding principle is:
+The guiding principle:
 
 > **Make the algorithm smarter about where to be unnatural, not smarter about how to hide the unnaturalness.**
