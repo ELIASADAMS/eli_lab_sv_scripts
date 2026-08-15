@@ -4,83 +4,51 @@ This is the design document for the VOCALOID-style tuning system in `eli_lab_sv_
 
 **Runtime target:** Synthesizer V Studio Pro 1.11.0b1 / Synthesizer V Engine 2.8.1.
 
-## The important architectural change
+## Current architecture
 
-The Lab is no longer treated as a set of unrelated pitch generators.
+The Lab is a **shared conceptual system**, but deliberately has **no runtime analysis cache**.
 
-It is now a pipeline:
+Synthesizer V Studio 1.11 scripts are isolated JavaScript programs. The Lab therefore does not depend on `getScriptData()` / `setScriptData()` or on Studio 2.x APIs.
+
+Instead, every expressive engine uses the same analysis rules directly on the current `NoteGroup`:
 
 ```text
-                    NOTE SELECTION
+                    SELECTED NOTES
                          │
                          ▼
                ┌───────────────────┐
-               │ MORA CLASSIFIER   │
+               │ JAPANESE MORA     │
+               │ CLASSIFICATION    │
                └─────────┬─────────┘
                          │
                          ▼
                ┌───────────────────┐
-               │ PHRASE ANALYZER   │
+               │ PHRASE / NOTE     │
+               │ ANALYSIS RULES    │
                └─────────┬─────────┘
-                         │
-                         ▼
-              NOTE SCRIPT-DATA CACHE
-                         │
-       ┌─────────────────┼─────────────────┐
-       ▼                 ▼                 ▼
-    ACCENT            VIBRATO          TRANSITION
-    ENGINE             ENGINE             ENGINE
-       │                 │                 │
-       └─────────────────┼─────────────────┘
-                         ▼
-                 VOCALOID MODEL
                          │
           ┌──────────────┼──────────────┐
           ▼              ▼              ▼
-       CLASSIC        V1 / V2       2008 EXTREME
+       ACCENT         VIBRATO       TRANSITION
+       SCORE           SCORE           SCORE
+          │              │              │
+          └──────────────┼──────────────┘
+                         ▼
+                  MODEL / GESTURE
                          │
                          ▼
-                   PITCH DELTA
+                  PITCH DEVIATION
 ```
 
-## Why note scriptData?
+The **Phrase Analyzer** and **Mora Classifier** are diagnostic tools. They display the same analysis but do not write anything into the project.
 
-Synthesizer V Studio 1.x scripts are isolated JavaScript programs. A normal imported JavaScript core module is therefore not a dependable architecture for this target.
+## Shared analysis contract
 
-Studio exposes scriptData on notes/groups, and that data is JSON-serializable. The Lab uses that capability as a small project-local protocol.
-
-### Keys
+Every Lab engine should reason about the same concepts:
 
 ```text
-eli_lab.vocaloid.mora.v1
-eli_lab.vocaloid.analysis.v1
-```
-
-The data travels with the project and can be consumed by another Lab script later in the workflow.
-
-## Mora layer
-
-`VOCALOID Mora Classifier` classifies selected lyrics into:
-
-```text
-content
-contracted
-particle
-weak
-special
-unknown
-```
-
-The classifier deliberately stays conservative. It is not trying to perform full Japanese morphological analysis; it provides exactly the information needed for expressive pitch decisions.
-
-## Phrase layer
-
-`VOCALOID Phrase Analyzer` looks beyond the current selection and uses the selected note's actual parent `NoteGroup`.
-
-For every selected note it calculates:
-
-```text
-durationQ
+moraClass
+ durationQ
 prevInterval
 nextInterval
 sameAsPrev
@@ -94,39 +62,109 @@ transitionIn
 transitionOut
 ```
 
-This solves an important problem in the previous architecture: a selected note should know about its musical neighbors even when those neighbors were not selected.
+The values are calculated from the note and its actual parent `NoteGroup`, so a selected note can see its real musical neighbors even when those neighbors are not selected.
 
-## Consumer behavior
+### Mora classes
 
-The master `VOCALOID Tuning Lab`, `VOCALOID Accent Engine`, `VOCALOID Inter-Note Accent` and `VOCALOID 2008 Extreme` now consume cached analysis when it exists.
+```text
+content
+contracted
+particle
+weak
+special
+unknown
+```
 
-They also contain fallback analysis, so the workflow does not break if the user runs an engine directly without running the analyzer first.
+This is intentionally a lightweight Japanese singing heuristic, not a full morphological parser.
 
-## Model philosophy
+## Why there is no cache
 
-The model is not a claim to reproduce proprietary historical VOCALOID algorithms.
+Earlier versions attempted to use note script-data as a communication layer. That is not compatible with the user's actual Studio 1.11 scripting environment: `getScriptData()` is not callable there.
 
-It is a behavioral tuning language inspired by the characteristics we are targeting:
+The cache also isn't necessary for this project.
+
+The correct approach is:
+
+```text
+one shared DESIGN
+        ↓
+small pure analysis functions
+        ↓
+each engine calculates what it needs
+```
+
+This keeps the scripts independent, portable and compatible with the target application.
+
+## Expression philosophy
+
+The Lab is not trying to make SynthV more natural.
+
+It deliberately creates controlled artificiality:
 
 - hard pitch attacks
+- angular scoops
 - conspicuous overshoots
-- phrase-final falls
+- asymmetric falls
+- phrase-final drops
 - sparse mathematical vibrato
 - repeated-note instability
-- accent asymmetry
 - selective exaggeration
-- suppression of grammatical particles
+- grammatical-particle suppression
+- strong contrast between ordinary and important notes
 
-The **2008 Extreme** model is intentionally allowed to be ridiculous. Its purpose is to determine *where* an artificial performance should become conspicuous.
+**2008 Extreme** is intentionally allowed to look excessive. The important intelligence is deciding *where* the excess happens.
 
-## Visible menu organization
+## Engines
+
+### VOCALOID Tuning Lab
+
+The master model selector. It combines the common analysis rules with historical-style behavioral profiles:
+
+- Classic
+- V1
+- V2
+- 2008 Emotional
+- 2008 Extreme
+
+The models differ in attack strength, vibrato behavior, ending behavior and instability rather than using unrelated scoring systems.
+
+### VOCALOID Accent Engine
+
+Creates isolated pitch accents on individual notes.
+
+It uses duration, melodic movement, phrase boundaries, repeated pitches and Japanese mora class to decide how strongly a note should be decorated.
+
+### VOCALOID Inter-Note Accent
+
+Creates deliberate events around the boundary between neighboring notes:
+
+- Scoop Into Next
+- Dip Between
+- Overshoot Next
+- Double Accent
+- Broken
+
+It calculates the transition context directly from the neighboring notes.
+
+### VOCALOID 2008 Extreme
+
+The intentionally exaggerated laboratory preset:
+
+- very strong attacks
+- strong note-to-note accents
+- high vibrato density on suitable long notes
+- mechanical vibrato option
+- repeated-note emphasis
+- large phrase-final falls
+- deterministic seed
+
+## Menu organization
 
 ```text
 eli_lab - VOCALOID Tuning Lab
 │
 ├── VOCALOID Mora Classifier
 ├── VOCALOID Phrase Analyzer
-├── VOCALOID Analysis Cache Reset
 │
 ├── VOCALOID Tuning Lab
 ├── VOCALOID Accent Engine
@@ -139,62 +177,57 @@ eli_lab - VOCALOID Tuning Lab
 └── VOCALOID 2008 Extreme
 ```
 
-The visible category is the important part for SynthV; physical source directories are implementation organization.
+The obsolete **VOCALOID Analysis Cache Reset** utility has been removed.
 
 ## Recommended workflow
 
-### From flat notes
+### Flat notes
 
 ```text
 Pitch Reset Utility
         ↓
-Mora Classifier
+VOCALOID Tuning Lab / 2008 Extreme
         ↓
-Phrase Analyzer
+VOCALOID Accent Engine
         ↓
-VOCALOID 2008 Extreme
+VOCALOID Inter-Note Accent
         ↓
-Accent Engine / Inter-Note Accent
-        ↓
-Decimation if necessary
+Pitch Baker Decimation (optional)
 ```
 
-### From SynthV AI pitch
+There is **no required analyzer step**.
+
+Use the diagnostic tools only when you want to inspect why the Lab considers a note important.
+
+### SynthV-generated pitch
 
 ```text
 Bake SynthV Pitch
         ↓
-Mora Classifier
+VOCALOID Tuning Lab
         ↓
-Phrase Analyzer
+Accent / Inter-Note Accent
         ↓
-VOCALOID model
+Decimation (optional)
 ```
-
-## Future shared-layer additions
-
-The next engines should consume the same analysis contract rather than creating their own independent scoring systems.
-
-### Vibrato Gate
-
-Use `vibrato` and `accent` scores to remove oscillation while protecting important attacks.
-
-### Phrase Boundary Accent
-
-Use `phraseStart`, `phraseEnd`, `importance` and `transitionIn` to create explicit phrase-level events.
-
-### Pitch Deviation Copy / Paste
-
-A workflow utility, independent of the analysis layer, for reusing successful curves.
-
-### Pitch Deviation Normalize
-
-Normalize the shape of a selected curve while retaining its geometry.
-
-### Model profiles
-
-Eventually the historical models should differ primarily through model profiles and gesture rules, not duplicated scoring code.
 
 ## Compatibility rule
 
-Do not introduce Studio 2-only APIs into this system. In particular, the shared Lab must remain independent of newer Pitch Control, Retake, computed-pitch and side-panel APIs.
+The Lab targets **Synthesizer V Studio Pro 1.11.0b1**.
+
+Do not introduce Studio 2.x-only APIs such as newer Pitch Control objects, computed-pitch helpers or Retake APIs.
+
+The Lab should operate using the stable 1.x scripting primitives: `Note`, `NoteGroup`, `Automation`, `pitchDelta`, selection APIs and standard dialogs.
+
+## Future work
+
+The next useful shared concepts are not another cache layer. They are reusable **rules** that can be replicated consistently across engines:
+
+1. stronger Japanese mora/phoneme classification
+2. phrase-boundary weighting
+3. transition gesture vocabulary
+4. vibrato eligibility / gate rules
+5. deterministic model profiles
+6. Pitch Deviation copy / paste / normalize workflow tools
+
+The goal is a coherent **tuning language**, not a collection of unrelated randomizers.
