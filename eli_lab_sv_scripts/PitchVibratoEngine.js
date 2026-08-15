@@ -5,7 +5,7 @@ function getClientInfo() {
         name: SV.T(SCRIPT_TITLE),
         category: "eli_lab - Pitch Baker",
         author: "eli_lab",
-        versionNumber: 4,
+        versionNumber: 5,
         minEditorVersion: 65537
     };
 }
@@ -21,9 +21,16 @@ function seedRandom(seed) {
     };
 }
 function rand(lo, hi) { return lo + RNG() * (hi - lo); }
-
 function isParticle(s) { return ["は","が","を","に","へ","と","で","も","の","ね","よ","さ","ぞ","な","や"].indexOf(s) >= 0; }
 function isWeak(s) { return ["っ","ッ","ー","ん","ン","る","れ","ろ","す","つ","く","き"].indexOf(s) >= 0; }
+
+function getNeighbor(note, offset) {
+    var group = note.getParent();
+    var index = note.getIndexInParent();
+    var target = index + offset;
+    if (target < 0 || target >= group.getNumNotes()) return null;
+    return group.getNote(target);
+}
 
 function eligibility(note, prev, next, index, count) {
     var q = SV.QUARTER;
@@ -61,6 +68,7 @@ function main() {
             { name: "shape", type: "ComboBox", label: "Shape", choices: ["Smooth", "Asymmetric", "Broken", "Mechanical"], default: 1 },
             { name: "instability", type: "ComboBox", label: "Instability", choices: ["Low", "Medium", "High", "Extreme"], default: 1 },
             { name: "forceLong", type: "ComboBox", label: "Very long notes", choices: ["Allow", "Prefer", "Almost Always"], default: 1 },
+            { name: "replace", type: "ComboBox", label: "Replace selected note pitch data", choices: ["Yes", "No"], default: 0 },
             { name: "seed", type: "TextBox", label: "Seed", default: "2008" }
         ]
     };
@@ -77,21 +85,29 @@ function main() {
     notes.sort(function(a, b) { return a.getOnset() - b.getOnset(); });
 
     var depths = [2.5, 4.5, 7, 10, 15];
-    var coverage = [0.38, 0.65, 0.90, 1.15, 0.0][parseInt(r.answers.coverage)];
+    var coverageMode = parseInt(r.answers.coverage);
+    var coverage = [0.38, 0.65, 0.90, 1.15, 1.0][coverageMode];
     var onset = [0.52, 0.38, 0.25][parseInt(r.answers.onset)];
     var shape = parseInt(r.answers.shape);
     var instability = [0.04, 0.12, 0.22, 0.34][parseInt(r.answers.instability)];
     var force = parseInt(r.answers.forceLong);
+    var replace = parseInt(r.answers.replace) === 0;
+
+    if (replace) {
+        for (var c = 0; c < notes.length; c++) {
+            notes[c].getParent().getParameter("pitchDelta").remove(notes[c].getOnset(), notes[c].getEnd());
+        }
+    }
 
     for (var i = 0; i < notes.length; i++) {
         var note = notes[i];
-        var prev = i ? notes[i - 1] : null;
-        var next = i + 1 < notes.length ? notes[i + 1] : null;
+        var prev = getNeighbor(note, -1);
+        var next = getNeighbor(note, 1);
         var gate = eligibility(note, prev, next, i, notes.length);
         var durationQ = note.getDuration() / SV.QUARTER;
 
         if (durationQ >= 3.0 && force > 0) gate = force === 2 ? 0.98 : Math.max(gate, 0.78);
-        if (parseInt(r.answers.coverage) === 4 && durationQ < 2.0) continue;
+        if (coverageMode === 4 && durationQ < 2.0) continue;
         if (RNG() > clamp(gate * coverage, 0, 0.98)) continue;
 
         var start = note.getOnset();
