@@ -1,11 +1,13 @@
 var SCRIPT_TITLE = "VOCALOID Tuning Lab";
+var ANALYSIS_KEY = "eli_lab.vocaloid.analysis.v1";
+var MORA_KEY = "eli_lab.vocaloid.mora.v1";
 
 function getClientInfo() {
     return {
         name: SV.T(SCRIPT_TITLE),
         category: "eli_lab - VOCALOID Tuning Lab",
         author: "eli_lab",
-        versionNumber: 3,
+        versionNumber: 4,
         minEditorVersion: 67840
     };
 }
@@ -23,17 +25,39 @@ function seedRandom(seed) {
 function rand(lo, hi) { return lo + RNG() * (hi - lo); }
 function pick(a) { return a[Math.floor(RNG() * a.length)]; }
 
+var MODEL_PROFILES = [
+    { name: "Classic", attack: 14, vibrato: 5, cycles: 2, onset: 0.48, ending: 7 },
+    { name: "V1", attack: 18, vibrato: 6, cycles: 2, onset: 0.45, ending: 9 },
+    { name: "V2", attack: 23, vibrato: 8, cycles: 3, onset: 0.40, ending: 12 },
+    { name: "2008 Emotional", attack: 28, vibrato: 10, cycles: 3, onset: 0.32, ending: 15 },
+    { name: "2008 Extreme", attack: 38, vibrato: 14, cycles: 4, onset: 0.25, ending: 22 }
+];
+
+function getCachedMora(note) {
+    var data = note.getScriptData(MORA_KEY);
+    if (data && data.lyric === note.getLyrics()) return data.className;
+    return null;
+}
+
 function isParticle(s) {
     return ["は", "が", "を", "に", "へ", "と", "で", "も", "の", "ね", "よ", "さ", "ぞ", "な", "や"].indexOf(s) >= 0;
 }
 function isWeakMora(s) {
     return ["っ", "ッ", "ー", "ん", "ン", "る", "れ", "ろ", "す", "つ", "く", "き"].indexOf(s) >= 0;
 }
-function moraClass(s) {
+function moraClass(s, note) {
+    var cached = note ? getCachedMora(note) : null;
+    if (cached) return cached;
     if (!s) return "unknown";
     if (isParticle(s)) return "particle";
     if (isWeakMora(s)) return "weak";
     return "content";
+}
+
+function getAnalysis(note) {
+    var data = note.getScriptData(ANALYSIS_KEY);
+    if (data && data.lyric === note.getLyrics() && data.version === 1) return data;
+    return null;
 }
 
 function neighbor(note, offset) {
@@ -45,6 +69,8 @@ function neighbor(note, offset) {
 }
 
 function importance(note, prev, next, isFirst, isLast) {
+    var cached = getAnalysis(note);
+    if (cached) return cached.importance;
     var q = SV.QUARTER;
     var d = note.getDuration();
     var prevLeap = prev ? Math.abs(note.getPitch() - prev.getPitch()) : 0;
@@ -55,12 +81,14 @@ function importance(note, prev, next, isFirst, isLast) {
     if (isLast) score += 0.12;
     if (prev && prev.getPitch() === note.getPitch()) score -= 0.08;
     if (next && next.getPitch() === note.getPitch()) score += 0.06;
-    if (moraClass(note.getLyrics()) === "particle") score -= 0.26;
-    if (moraClass(note.getLyrics()) === "weak") score -= 0.10;
+    if (moraClass(note.getLyrics(), note) === "particle") score -= 0.26;
+    if (moraClass(note.getLyrics(), note) === "weak") score -= 0.10;
     return clamp(score, 0.04, 1.35);
 }
 
 function accentScore(note, prev, next, isFirst, isLast) {
+    var cached = getAnalysis(note);
+    if (cached) return cached.accent;
     var q = SV.QUARTER;
     var d = note.getDuration();
     var s = importance(note, prev, next, isFirst, isLast);
@@ -68,14 +96,16 @@ function accentScore(note, prev, next, isFirst, isLast) {
     if (prev && Math.abs(note.getPitch() - prev.getPitch()) >= 5) s += 0.16;
     if (next && Math.abs(next.getPitch() - note.getPitch()) >= 5) s += 0.20;
     if (isLast) s += 0.14;
-    if (moraClass(note.getLyrics()) === "particle") s -= 0.30;
+    if (moraClass(note.getLyrics(), note) === "particle") s -= 0.30;
     return clamp(s, 0, 1.5);
 }
 
 function vibratoProbability(note, prev, next, isLast, coverage) {
+    var cached = getAnalysis(note);
+    if (cached) return clamp(cached.vibrato * coverage, 0, 0.98);
     var q = SV.QUARTER;
     var d = note.getDuration();
-    var kind = moraClass(note.getLyrics());
+    var kind = moraClass(note.getLyrics(), note);
     if (kind !== "content") return 0;
     if (d < q * 1.25) return 0;
 
@@ -102,7 +132,7 @@ function addAttack(auto, note, prev, score, strength, extreme) {
     var jump = clamp(Math.abs(interval) / 7, 0, 1);
     var amount = strength * (0.30 + score * 0.78) * (0.55 + jump * 0.65);
     if (extreme) amount *= 1.22;
-    if (moraClass(note.getLyrics()) === "particle") amount *= 0.28;
+    if (moraClass(note.getLyrics(), note) === "particle") amount *= 0.28;
     if (prev && prev.getPitch() === note.getPitch()) amount *= 0.72;
 
     var pre = amount * direction * rand(0.45, 0.95);
@@ -119,9 +149,9 @@ function addAccent(auto, note, next, score, amount, extreme) {
     var start = note.getOnset();
     var d = note.getDuration();
     var a = amount * score;
-    var kind = moraClass(note.getLyrics());
+    var kind = moraClass(note.getLyrics(), note);
     if (kind === "particle") a *= 0.16;
-    if (kind === "weak") a *= 0.45;
+    if (kind === "weak" || kind === "special") a *= 0.45;
     if (extreme) a *= 1.22;
 
     var direction = next && next.getPitch() > note.getPitch() ? 1 : next && next.getPitch() < note.getPitch() ? -1 : pick([-1, 1]);
@@ -154,15 +184,6 @@ function addVibrato(auto, note, depth, cycles, onset, extreme, instability) {
     addPoint(auto, end, 0);
 }
 
-function uniqueGroups(notes) {
-    var groups = [];
-    for (var i = 0; i < notes.length; i++) {
-        var g = notes[i].getParent();
-        if (groups.indexOf(g) < 0) groups.push(g);
-    }
-    return groups;
-}
-
 function main() {
     var form = {
         title: SV.T(SCRIPT_TITLE),
@@ -189,14 +210,15 @@ function main() {
     notes.sort(function(a, b) { return a.getOnset() - b.getOnset(); });
 
     var era = parseInt(r.answers.era);
+    var profile = MODEL_PROFILES[era];
     var accentLevel = [0.55, 0.90, 1.35, 1.90][parseInt(r.answers.accent)];
     var vibMode = parseInt(r.answers.vibrato);
     var instability = [0.05, 0.12, 0.22, 0.34][parseInt(r.answers.instability)];
     var extreme = era === 4;
-    var attackAmount = [14, 18, 23, 28, 38][era] * (0.75 + instability * 0.45);
-    var vibDepth = [5, 6, 8, 10, 14][era] * (0.80 + instability * 0.55);
-    var vibCycles = [2, 2, 3, 3, 4][era];
-    var vibOnset = [0.48, 0.45, 0.40, 0.32, 0.25][era];
+    var attackAmount = profile.attack * (0.75 + instability * 0.45);
+    var vibDepth = profile.vibrato * (0.80 + instability * 0.55);
+    var vibCycles = profile.cycles;
+    var vibOnset = profile.onset;
     var coverage = [0.55, 0.85, 1.15, 0][vibMode];
 
     if (parseInt(r.answers.clear) === 0) {
@@ -221,7 +243,7 @@ function main() {
         }
 
         if (i === notes.length - 1 && note.getDuration() > SV.QUARTER * 0.75) {
-            addPoint(auto, note.getEnd() - note.getDuration() * 0.14, -[7, 9, 12, 15, 22][era] * (0.75 + instability * 0.5));
+            addPoint(auto, note.getEnd() - note.getDuration() * 0.14, -profile.ending * (0.75 + instability * 0.5));
             addPoint(auto, note.getEnd(), 0);
         }
     }
