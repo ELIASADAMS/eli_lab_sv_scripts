@@ -1,11 +1,13 @@
 var SCRIPT_TITLE = "VOCALOID 2008 Extreme";
+var ANALYSIS_KEY = "eli_lab.vocaloid.analysis.v1";
+var MORA_KEY = "eli_lab.vocaloid.mora.v1";
 
 function getClientInfo() {
     return {
         name: SV.T(SCRIPT_TITLE),
         category: "eli_lab - VOCALOID Tuning Lab",
         author: "eli_lab",
-        versionNumber: 1,
+        versionNumber: 2,
         minEditorVersion: 67840
     };
 }
@@ -23,6 +25,14 @@ function seedRandom(seed) {
 function rand(lo, hi) { return lo + RNG() * (hi - lo); }
 function particle(s) { return ["は","が","を","に","へ","と","で","も","の","ね","よ","さ","ぞ","な","や"].indexOf(s) >= 0; }
 function weak(s) { return ["っ","ッ","ー","ん","ン","る","れ","ろ","す","つ","く","き"].indexOf(s) >= 0; }
+function getAnalysis(note) {
+    var data = note.getScriptData(ANALYSIS_KEY);
+    return data && data.lyric === note.getLyrics() && data.version === 1 ? data : null;
+}
+function getMora(note) {
+    var data = note.getScriptData(MORA_KEY);
+    return data && data.lyric === note.getLyrics() ? data.className : null;
+}
 function neighbor(note, offset) {
     var group = note.getParent();
     var index = note.getIndexInParent();
@@ -35,7 +45,7 @@ function add(auto, t, v) { auto.add(Math.round(t), clamp(v, -1200, 1200)); }
 function main() {
     var r = SV.showCustomDialog({
         title: SV.T(SCRIPT_TITLE),
-        message: "Extreme 2008-style laboratory preset: hard attacks, conspicuous accents, mathematical vibrato and unstable repeated notes.",
+        message: "Extreme 2008-style laboratory preset: hard attacks, conspicuous accents, mathematical vibrato and unstable repeated notes. Run VOCALOID Phrase Analyzer first for contextual decisions.",
         buttons: "OkCancel",
         widgets: [
             { name: "amount", type: "ComboBox", label: "Intensity", choices: ["Strong", "Extreme", "Maximum"], default: 1 },
@@ -66,24 +76,30 @@ function main() {
         var n = notes[i];
         var prev = neighbor(n, -1);
         var next = neighbor(n, 1);
+        var data = getAnalysis(n);
+        var mora = data ? data.moraClass : (getMora(n) || (particle(n.getLyrics()) ? "particle" : weak(n.getLyrics()) ? "weak" : "content"));
         var d = n.getDuration();
         var start = n.getOnset();
-        var jump = prev ? Math.min(1.5, Math.abs(n.getPitch() - prev.getPitch()) / 5) : 0.5;
-        var amount = 26 * scale * (0.65 + jump * 0.55);
-        if (prev && prev.getPitch() === n.getPitch()) amount *= 1.22;
-        if (particle(n.getLyrics())) amount *= 0.22;
-        if (weak(n.getLyrics())) amount *= 0.45;
+        var jump = data ? Math.min(1.5, Math.max(Math.abs(data.prevInterval), Math.abs(data.nextInterval)) / 5) : (prev ? Math.min(1.5, Math.abs(n.getPitch() - prev.getPitch()) / 5) : 0.5);
+        var accentScore = data ? data.accent : 0.8;
+        var amount = 26 * scale * (0.65 + jump * 0.55) * (0.70 + accentScore * 0.55);
+        if (data && data.sameAsPrev) amount *= 1.22;
+        if (mora === "particle") amount *= 0.22;
+        if (mora === "weak" || mora === "special") amount *= 0.45;
+        if (data && data.phraseStart) amount *= 1.08;
+        if (data && data.phraseEnd) amount *= 1.16;
 
-        var direction = next && next.getPitch() > n.getPitch() ? 1 : next && next.getPitch() < n.getPitch() ? -1 : prev && n.getPitch() > prev.getPitch() ? 1 : -1;
+        var direction = data && data.nextInterval !== 0 ? (data.nextInterval > 0 ? 1 : -1) : next && next.getPitch() > n.getPitch() ? 1 : next && next.getPitch() < n.getPitch() ? -1 : prev && n.getPitch() > prev.getPitch() ? 1 : -1;
         var auto = n.getParent().getParameter("pitchDelta");
         add(auto, start, 0);
         add(auto, start + d * rand(0.018, 0.05), direction * amount * rand(0.55, 1.0));
         add(auto, start + d * rand(0.07, 0.14), direction * amount * rand(0.30, 0.95));
         add(auto, start + d * rand(0.16, 0.25), rand(-4, 4));
 
-        if (!particle(n.getLyrics()) && !weak(n.getLyrics()) && d >= SV.QUARTER * 1.25) {
-            var probability = d >= SV.QUARTER * 3 ? 0.98 : d >= SV.QUARTER * 2 ? 0.86 : 0.55;
-            if (next && Math.abs(next.getPitch() - n.getPitch()) >= 5) probability *= 0.65;
+        if (mora !== "particle" && mora !== "weak" && mora !== "special" && d >= SV.QUARTER * 1.25) {
+            var probability = data ? data.vibrato : (d >= SV.QUARTER * 3 ? 0.98 : d >= SV.QUARTER * 2 ? 0.86 : 0.55);
+            probability = clamp(probability * 1.20, 0, 0.99);
+            if (data && data.nextInterval !== 0 && Math.abs(data.nextInterval) >= 5) probability *= 0.65;
             if (RNG() < probability) {
                 var vibStart = start + d * (mechanical ? 0.22 : 0.27);
                 var vibEnd = n.getEnd();
