@@ -1,6 +1,6 @@
 # VOCALOID Tuning Lab
 
-The VOCALOID Tuning Lab is a **shared behavioral system**, not just a collection of historical presets.
+A shared **behavioral tuning language** for deliberately artificial VOCALOID-style pitch inside Synthesizer V.
 
 Target runtime:
 
@@ -15,53 +15,38 @@ Synthesizer V Engine 2.8.1
                     SELECTED NOTES
                          │
                          ▼
-              ┌─────────────────────┐
-              │ Japanese Mora       │
-              │ Classifier          │
-              └──────────┬──────────┘
+              Japanese Mora Rules
                          │
                          ▼
-              ┌─────────────────────┐
-              │ Phrase Analyzer      │
-              │                      │
-              │ duration             │
-              │ melodic intervals    │
-              │ repeated pitch       │
-              │ phrase boundaries    │
-              │ mora class           │
-              │ accent score         │
-              │ vibrato score        │
-              │ transition scores    │
-              └──────────┬──────────┘
+              Phrase / Note Analysis
                          │
-                  note scriptData
-                         │
-             ┌───────────┼───────────┐
-             ▼           ▼           ▼
-          Accent      Vibrato     Transition
-          Engine      Engine       Engine
-             │           │           │
-             └───────────┼───────────┘
+          ┌──────────────┼──────────────┐
+          ▼              ▼              ▼
+       Accent         Vibrato       Transition
+       Score           Score           Score
+          │              │              │
+          └──────────────┼──────────────┘
                          ▼
-                Tuning Model
+                   Tuning Model
                          │
           ┌──────────────┼──────────────┐
           ▼              ▼              ▼
        Classic       V1 / V2       2008 Extreme
 ```
 
-SynthV Studio 1.x scripts are isolated JavaScript programs; they do not provide a normal shared-module/import system. The Lab therefore uses **note scriptData as its shared state**. The analyzer scripts write JSON-serializable metadata onto notes, and pitch engines read it when available, falling back to their local analysis when it is absent. This keeps the system compatible with Studio 1.11 while allowing separate scripts to share decisions through the project itself.
+### Important: no analysis cache
 
-## Shared metadata
+The Lab intentionally does **not** use `getScriptData()` / `setScriptData()`.
 
-Keys:
+Those calls are not available in the user's actual SynthV Studio 1.11 scripting environment, and a cache is unnecessary here.
 
-```text
-eli_lab.vocaloid.mora.v1
-eli_lab.vocaloid.analysis.v1
-```
+Instead, each engine contains the same small analysis rules and calculates context directly from the current note and its real parent `NoteGroup`.
 
-The phrase record contains:
+The result is a **shared conceptual layer**, not a runtime shared-state layer.
+
+## Common analysis
+
+Every engine should reason about:
 
 ```text
 moraClass
@@ -79,51 +64,102 @@ transitionIn
 transitionOut
 ```
 
+The analysis considers notes outside the current selection when they are neighbors in the same `NoteGroup`.
+
+### Mora classes
+
+```text
+content
+contracted
+particle
+weak
+special
+unknown
+```
+
+This is a lightweight singing-oriented Japanese heuristic, not a full morphological parser.
+
+## Scripts
+
+### VOCALOID Mora Classifier
+
+Diagnostic only. Shows the classification of selected lyrics.
+
+It writes **nothing** to notes or automation.
+
+### VOCALOID Phrase Analyzer
+
+Diagnostic only. Shows the live phrase scores for selected notes.
+
+It writes **nothing** to notes or automation.
+
+### VOCALOID Tuning Lab
+
+The main model selector:
+
+- Classic
+- V1
+- V2
+- 2008 Emotional
+- 2008 Extreme
+
+### VOCALOID Accent Engine
+
+Creates isolated, context-sensitive pitch accents.
+
+### VOCALOID Inter-Note Accent
+
+Creates expressive events around transitions between neighboring notes.
+
+### VOCALOID 2008 Extreme
+
+The deliberately excessive laboratory preset:
+
+- hard attacks
+- exaggerated accents
+- mathematical vibrato
+- mechanical vibrato option
+- repeated-note emphasis
+- strong phrase endings
+
 ## Workflow
 
-### 1. Prepare
+You do **not** need to run an analyzer first.
 
-Use **VOCALOID Mora Classifier** when Japanese lyric classification needs to be refreshed.
+For flat notes:
 
-### 2. Analyze
+```text
+Pitch Reset Utility
+        ↓
+VOCALOID Tuning Lab / 2008 Extreme
+        ↓
+VOCALOID Accent Engine
+        ↓
+VOCALOID Inter-Note Accent
+        ↓
+Pitch Baker Decimation (optional)
+```
 
-Run **VOCALOID Phrase Analyzer** once over the phrase. It analyzes each selected note using its actual parent `NoteGroup`, including neighbors outside the current selection.
+For SynthV-generated pitch:
 
-### 3. Generate
+```text
+Bake SynthV Pitch
+        ↓
+VOCALOID Tuning Lab
+        ↓
+Accent / Inter-Note Accent
+        ↓
+Decimation (optional)
+```
 
-Use one of:
+The diagnostic analyzer/classifier are optional inspection tools.
 
-- VOCALOID Tuning Lab
-- VOCALOID Accent Engine
-- VOCALOID Inter-Note Accent
-- VOCALOID 2008 Extreme
+## Compatibility
 
-The master engine, Accent Engine and 2008 Extreme consume cached analysis when it matches the current lyric.
+Do not introduce Studio 2.x-only APIs into this Lab.
 
-### 4. Reset
+The target is strictly:
 
-**VOCALOID Analysis Cache Reset** removes only the Lab's own metadata keys. It does not touch pitch data or other scripts' data.
+**Synthesizer V Studio Pro 1.11.0b1 / Engine 2.8.1**
 
-## Design philosophy
-
-The Lab does not try to make VOCALOID-like tuning random everywhere. It tries to make the **right notes unnaturally expressive**.
-
-The strongest signals are:
-
-- phrase boundaries
-- large melodic jumps
-- long sustained notes
-- repeated notes
-- lexical/content morae
-- transitions between notes
-
-The strongest suppressors are:
-
-- grammatical particles
-- weak/special morae
-- short notes
-- large transitions where vibrato would fight the gesture
-
-## Important limitation
-
-The shared layer is a **project-data protocol**, not a JavaScript module. This is intentional: SynthV 1.x scripts run in isolation, so a conventional imported core library would not be portable to the target host.
+The Lab should stay within the Studio 1.x scripting primitives used by this repository.
