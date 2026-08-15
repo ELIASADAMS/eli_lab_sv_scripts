@@ -1,17 +1,22 @@
 var SCRIPT_TITLE = "VOCALOID Inter-Note Accent";
+var ANALYSIS_KEY = "eli_lab.vocaloid.analysis.v1";
 
 function getClientInfo() {
     return {
         name: SV.T(SCRIPT_TITLE),
         category: "eli_lab - VOCALOID Tuning Lab",
         author: "eli_lab",
-        versionNumber: 1,
+        versionNumber: 2,
         minEditorVersion: 67840
     };
 }
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function add(auto, t, v) { auto.add(Math.round(t), clamp(v, -1200, 1200)); }
+function getAnalysis(note) {
+    var data = note.getScriptData(ANALYSIS_KEY);
+    return data && data.lyric === note.getLyrics() && data.version === 1 ? data : null;
+}
 
 function main() {
     var notes = SV.getMainEditor().getSelection().getSelectedNotes();
@@ -23,7 +28,7 @@ function main() {
 
     var form = {
         title: SV.T(SCRIPT_TITLE),
-        message: "Create deliberate pitch events at selected note boundaries instead of decorating every note.",
+        message: "Create deliberate pitch events at selected note boundaries. Run VOCALOID Phrase Analyzer first for contextual transition weighting.",
         buttons: "OkCancel",
         widgets: [
             { name: "style", type: "ComboBox", label: "Transition", choices: ["Scoop Into Next", "Dip Between", "Overshoot Next", "Double Accent", "Broken"], default: 0 },
@@ -46,13 +51,18 @@ function main() {
         if (left.getParent() !== right.getParent()) continue;
         if (left.getEnd() > right.getOnset()) continue;
 
+        var leftData = getAnalysis(left);
+        var rightData = getAnalysis(right);
         var interval = right.getPitch() - left.getPitch();
         if (interval === 0) interval = 0.5;
         var direction = interval > 0 ? 1 : -1;
         var jump = Math.abs(interval);
-        var amount = strength * (0.65 + Math.min(jump, 12) / 12 * 0.65);
+        var transitionScore = rightData ? rightData.transitionIn : Math.min(jump / 7, 1);
+        var amount = strength * (0.55 + transitionScore * 0.85);
         if (jumpMode === 1) amount *= jump >= 5 ? 0.65 : 1;
         if (jumpMode === 2) amount *= jump >= 5 ? 1.35 : 1;
+        if (rightData && rightData.moraClass === "particle") amount *= 0.55;
+        if (rightData && rightData.phraseStart) amount *= 1.12;
 
         var boundary = right.getOnset();
         var pre = Math.min(window * SV.QUARTER, right.getDuration() * 0.18, left.getDuration() * 0.18);
