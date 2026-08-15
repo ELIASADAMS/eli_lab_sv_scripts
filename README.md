@@ -58,8 +58,9 @@ The old-school VOCALOID laboratory. These tools assume that the source pitch is 
 - **VOCALOID V1 Tuning**
 - **VOCALOID V2 Tuning**
 - **VOCALOID 2008 Emotional Tuning**
+- **VOCALOID 2008 Extreme** — standalone extreme laboratory preset.
 
-The master engine's **2008 Extreme** mode is the reference experimental style. It intentionally favors exaggerated attacks, selective vibrato, phrase endings, repeated-note instability and conspicuous accents.
+The master engine's **2008 Extreme** mode and the standalone **VOCALOID 2008 Extreme** script are the reference experimental styles. They intentionally favor exaggerated attacks, selective vibrato, phrase endings, repeated-note instability and conspicuous accents.
 
 ### `eli_lab - VOCALOID Utilities`
 
@@ -78,7 +79,7 @@ For the deliberately artificial late-2000s sound:
 1. Select the phrase.
 2. Run **VOCALOID Utilities → Pitch Reset Utility → Pitch Deviation + Auto Mode**.
 3. If you want SynthV's AI performance as a starting point, instead run **Bake SynthV Pitch** first.
-4. Run **VOCALOID Tuning Lab → VOCALOID Tuning Lab**.
+4. Run **VOCALOID Tuning Lab → VOCALOID Tuning Lab** or the standalone **VOCALOID 2008 Extreme** preset.
 5. Start with **2008 Extreme** and reduce the settings only if the result is too aggressive.
 6. Use **VOCALOID Accent Engine** for a second accent pass.
 7. Use **VOCALOID Inter-Note Accent** when the missing character is in the transitions rather than inside the notes.
