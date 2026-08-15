@@ -1,72 +1,140 @@
 # eli_lab SynthV Custom Scripts
 
-A collection of experimental utility and music-creation scripts for **Synthesizer V Studio**. The repository is intentionally split between practical tools and destructive/expressive pitch experiments.
+Experimental and practical scripts for **Synthesizer V Studio Pro 1.11.x**.
 
-## Main menu families
+The collection is intentionally split into workflow utilities and destructive/expressive pitch tools. The main goal is not maximum naturalness: many Pitch Baker and VOCALOID Tuning Lab scripts are designed to create sparse, mechanical, exaggerated or deliberately artificial vocal curves.
 
-### eli_lab - Pitch Baker
+## Target environment
 
-Tools for turning SynthV's dense, modern pitch behavior into editable, sparse or deliberately artificial curves.
+Primary development target:
 
-- **Pitch Baker - Contour Engine** — generate/shape contour movement.
-- **Pitch Baker - Decimation Engine** — curvature-aware curve simplification with Angular, VOCALOID and Extreme modes.
-- **Pitch Baker - Gesture Engine** — pitch gestures and attacks.
-- **Pitch Baker - Vibrato Engine** — phrase-aware vibrato with eligibility gating instead of vibrating every long-ish note.
+```text
+Synthesizer V Studio Pro 1.11.0b1
+Synthesizer V Engine 2.8.1
+```
 
-### eli_lab - VOCALOID Tuning Lab
+The scripts use the Studio 1.x scripting model available to this environment. In particular, the VOCALOID workflow relies on `pitchDelta` and the 1.9.0b2+ `getPitchAutoMode()` / `setPitchAutoMode()` APIs.
 
-A separate experimental family for deliberately old-school VOCALOID-like tuning. These scripts are designed to start from flat or reset Pitch Deviation and create conspicuous, mathematical pitch gestures.
+**Do not assume Studio 2.x pitch-control APIs are required.** The repository intentionally avoids Studio 2-only `PitchControlCurve`, `PitchControlPoint`, retake, phoneme-timing and computed-pitch APIs in its core 1.11 workflow.
 
-- **VOCALOID Tuning Lab** — master multi-era emulator with Classic, V1, V2, 2008 Emotional and 2008 Extreme behavior.
-- **VOCALOID Accent Engine** — analyzes duration, melodic movement, phrase position and Japanese grammatical particles before adding accents.
-- **VOCALOID V1 Tuning** — restrained early-era model.
-- **VOCALOID V2 Tuning** — sharper attacks and stronger long-note behavior.
-- **VOCALOID 2008 Emotional Tuning** — exaggerated late-2000s phrasing.
-- **VOCALOID Classic Tuning** — earlier classic-style experimental model.
+SynthV 1.x supports freezing AI-generated pitch by switching Sing/Rap notes to Manual Mode; the generated pitch is moved into Pitch Deviation and stops regenerating. That is the basis of **Bake SynthV Pitch**. citeturn2search0
 
-**2008 Extreme is intentionally not naturalistic.** It is the reference laboratory mode for testing large attacks, conspicuous accents, mathematical vibrato and unstable pitch movement.
+## Menu structure
 
-### eli_lab - VOCALOID Utilities
+### `eli_lab - Basic`
 
-Tools for preparing, freezing and analyzing pitch before/after an emulation pass.
+Small editing operations that should be safe to use repeatedly.
 
-- **Pitch Reset Utility** — clear Pitch Deviation, Pitch Controls, or both; selected-note or whole-group scope.
-- **Bake SynthV Pitch** — uses SynthV 2.1.1+ computed pitch sampling to capture the actual generated pitch and freeze it into editable Pitch Deviation.
-- **Japanese Mora Utility** — analyze Japanese lyrics as morae or split notes into mora-sized notes with equal/weighted timing.
+- **Split Note into N Pieces** — exact-duration note splitting.
+- **Replace + with - in Lyrics** — lyric cleanup.
+
+### `eli_lab - Music Creation`
+
+Generative and workflow-oriented note tools.
+
+- **Note Duplicator** — duplicate notes with pitch/duration variation.
+- **Randomize Note Lengths** — bounded duration randomization.
+- **Randomize Pitch in Key** — pitch randomization within a selected major scale.
+- **Make Selected Notes Legato** — close gaps without moving note onsets.
+- **Quantize Selected Note Lengths** — duration quantization with next-note protection.
+
+### `eli_lab - Pitch Baker`
+
+The destructive pitch-processing laboratory.
+
+- **Contour Engine** — deliberately generated pitch gestures.
+- **Decimation Engine** — turn dense automation into sparse geometry while preserving selected-note boundaries.
+- **Gesture Engine** — explicit scoops, overshoots, falls, rises, cracks and kinks.
+- **Vibrato Engine** — selective phrase-aware vibrato rather than vibrating every note.
+
+### `eli_lab - VOCALOID Tuning Lab`
+
+The old-school VOCALOID laboratory. These tools assume that the source pitch is flat or deliberately reset, then create conspicuous mathematical pitch behavior.
+
+- **VOCALOID Tuning Lab** — master multi-era engine.
+- **VOCALOID Accent Engine** — contextual accent generation.
+- **VOCALOID Inter-Note Accent** — puts pitch events at the boundary between two selected notes.
+- **VOCALOID Classic Tuning Emulator**
+- **VOCALOID V1 Tuning**
+- **VOCALOID V2 Tuning**
+- **VOCALOID 2008 Emotional Tuning**
+
+The master engine's **2008 Extreme** mode is the reference experimental style. It intentionally favors exaggerated attacks, selective vibrato, phrase endings, repeated-note instability and conspicuous accents.
+
+### `eli_lab - VOCALOID Utilities`
+
+Preparation and adjustment tools for the tuning lab.
+
+- **Bake SynthV Pitch** — freeze selected AI-generated pitch into Pitch Deviation using Studio 1.x Manual Mode.
+- **Pitch Reset Utility** — remove Pitch Deviation from selected note ranges and optionally return notes to Auto Mode.
+- **Japanese Mora Utility** — Japanese mora analysis/splitting support.
+- **Scale Pitch Deviation** — multiply existing Pitch Deviation without changing note pitch.
+- **Offset Pitch Deviation** — add/subtract a constant number of cents.
 
 ## Recommended VOCALOID workflow
 
-For the strongest old-school effect:
+For the deliberately artificial late-2000s sound:
 
 1. Select the phrase.
-2. Run **VOCALOID Utilities → Pitch Reset Utility → Both**.
-3. Run **VOCALOID Tuning Lab → VOCALOID Tuning Lab**.
-4. Start with **2008 Extreme** if the goal is visibly artificial, expressive tuning.
-5. If you want SynthV's modern generated pitch first, use **Bake SynthV Pitch**, then run a Pitch Baker or VOCALOID transformation on the baked result.
-6. Use **Pitch Baker - Decimation Engine → VOCALOID/Extreme** when the curve is too dense.
+2. Run **VOCALOID Utilities → Pitch Reset Utility → Pitch Deviation + Auto Mode**.
+3. If you want SynthV's AI performance as a starting point, instead run **Bake SynthV Pitch** first.
+4. Run **VOCALOID Tuning Lab → VOCALOID Tuning Lab**.
+5. Start with **2008 Extreme** and reduce the settings only if the result is too aggressive.
+6. Use **VOCALOID Accent Engine** for a second accent pass.
+7. Use **VOCALOID Inter-Note Accent** when the missing character is in the transitions rather than inside the notes.
+8. If the curve is too dense, use **Pitch Baker → Decimation Engine → VOCALOID/Extreme**.
+9. Use **Scale Pitch Deviation** to quickly push a successful result to 150–300% rather than regenerating it.
 
-## Japanese mora workflow
+### Why Extreme is useful
 
-**Japanese Mora Utility** understands small kana combinations such as `きゃ`, `しゅ`, `ちょ`, while treating `ん`, `っ` and `ー` as independent mora units. This is intentionally useful for old VOCALOID-style syllabic accent experiments.
+The desired aesthetic is not simply “random pitch”. It is **controlled artificiality**:
 
-## Basic / Music Creation cleanup
+```text
+flat note
+   ↓
+phrase analysis
+   ↓
+accent / attack / transition decisions
+   ↓
+mathematical gestures
+   ↓
+sparse editable Pitch Deviation
+```
 
-The repository also contains general scripts for note duplication, randomization, splitting and other experimental music creation. The misspelled `NoteDublicator.js` was replaced by `NoteDuplicator.js`, and the note-length randomizer now respects the next note boundary rather than claiming to avoid overlaps while extending into neighboring notes.
+The algorithm should therefore become more intelligent about **where** to be extreme, not merely more conservative.
 
-## Compatibility
+## Design principles
 
-The new **Bake SynthV Pitch** and pitch-control functionality require Synthesizer V Studio **2.1.1+**. Other scripts remain compatible with older scripting APIs where possible.
+### 1. Selected means selected
 
-Synthesizer V's current scripting API exposes computed pitch sampling through `SV.getComputedPitchForGroup()`, plus editable `pitchDelta` automation and pitch-control objects. The VOCALOID tools use these capabilities rather than attempting to imitate SynthV's internal pitch generator.
+Scripts that modify automation should not erase or rewrite unselected notes between two selected notes. This is especially important for decimation and reset tools.
+
+### 2. NoteGroup-local context
+
+Pitch decisions should use neighbors from the note's own `NoteGroup`, not simply the previous/next item in the current selection.
+
+### 3. Deterministic experiments
+
+Randomized pitch tools increasingly expose a seed so that a successful result can be reproduced exactly.
+
+### 4. Preserve musical boundaries
+
+Pitch automation is stored as `pitchDelta` in cents. Automation supports point insertion, interpolation, range removal and point retrieval; the Pitch Baker tools use those operations rather than inventing a second curve representation. citeturn1search1
+
+### 5. Extreme is a feature
+
+The project is deliberately interested in robotic, angular, mathematical and historically-inspired VOCALOID-like tuning. “More natural” is not automatically “better”.
+
+## Documentation
+
+See **[SCRIPT_CATALOG.md](SCRIPT_CATALOG.md)** for the current inventory, known limitations and development roadmap.
 
 ## Installation
 
-1. Clone or download this repo.
-2. Open Synthesizer V Studio and choose **File > Open Script Folder**.
-3. Copy the `.js` scripts into the script folder, preserving the directory structure if desired.
-4. Restart/reload scripts.
-5. The `category` returned by each script controls which submenu it appears under.
+Synthesizer V Pro scans its scripts folder at startup and also provides **Scripts → Rescan**. The Studio 1.x manual documents the scripts-folder workflow. citeturn3search0
+
+Keep the directory structure from this repository when copying the scripts so the source remains organized. The `category` returned by each script determines the visible menu family.
 
 ## License
 
-MIT License. Free to use, modify, and share. Credit appreciated for forks/ports.
+MIT License. Free to use, modify and share. Credit appreciated for forks and ports.
