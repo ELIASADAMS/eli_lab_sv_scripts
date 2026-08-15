@@ -5,12 +5,26 @@ function getClientInfo() {
         name: SV.T(SCRIPT_TITLE),
         category: "eli_lab - VOCALOID Utilities",
         author: "eli_lab",
-        versionNumber: 1,
+        versionNumber: 2,
         minEditorVersion: 65537
     };
 }
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function offsetRange(auto, begin, end, amount) {
+    if (end <= begin) return;
+    var points = auto.getPoints(begin, end);
+    var hasBegin = false;
+    var hasEnd = false;
+    for (var i = 0; i < points.length; i++) {
+        if (Math.abs(points[i][0] - begin) < 0.5) hasBegin = true;
+        if (Math.abs(points[i][0] - end) < 0.5) hasEnd = true;
+    }
+    if (!hasBegin) points.unshift([begin, auto.get(begin)]);
+    if (!hasEnd) points.push([end, auto.get(end)]);
+    for (var p = 0; p < points.length; p++) auto.add(points[p][0], clamp(points[p][1] + amount, -1200, 1200));
+}
 
 function main() {
     var notes = SV.getMainEditor().getSelection().getSelectedNotes();
@@ -46,19 +60,13 @@ function main() {
     for (var gi = 0; gi < groups.length; gi++) {
         var group = groups[gi];
         var auto = group.getParameter("pitchDelta");
-        var ranges = [];
         if (scope === 1) {
-            ranges.push([group.getNote(0).getOnset(), group.getNote(group.getNumNotes() - 1).getEnd()]);
+            offsetRange(auto, group.getNote(0).getOnset(), group.getNote(group.getNumNotes() - 1).getEnd(), amount);
         } else {
             for (var n = 0; n < notes.length; n++) {
-                if (notes[n].getParent() === group) ranges.push([notes[n].getOnset(), notes[n].getEnd()]);
+                if (notes[n].getParent() === group) offsetRange(auto, notes[n].getOnset(), notes[n].getEnd(), amount);
             }
         }
-        for (var ri = 0; ri < ranges.length; ri++) {
-            var points = auto.getPoints(ranges[ri][0], ranges[ri][1]);
-            for (var p = 0; p < points.length; p++) auto.add(points[p][0], clamp(points[p][1] + amount, -1200, 1200));
-        }
     }
-
     SV.finish();
 }
