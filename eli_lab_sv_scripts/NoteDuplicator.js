@@ -5,17 +5,15 @@ function getClientInfo() {
         name: SV.T(SCRIPT_TITLE),
         category: "eli_lab - Music Creation",
         author: "eli_lab",
-        versionNumber: 2,
+        versionNumber: 3,
         minEditorVersion: 65537
     };
 }
 
-function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-
 function main() {
     var form = {
         title: SV.T(SCRIPT_TITLE),
-        message: "Duplicate selected notes with controlled variation",
+        message: "Duplicate selected notes with controlled pitch and duration variation.",
         buttons: "OkCancel",
         widgets: [
             { name: "copies", type: "ComboBox", label: "Number of copies", choices: ["3", "5", "7", "9"], default: 1 },
@@ -27,9 +25,11 @@ function main() {
     var r = SV.showCustomDialog(form);
     if (!r.status) return;
     var notes = SV.getMainEditor().getSelection().getSelectedNotes();
-    if (!notes.length) { SV.showMessageBox(SV.T(SCRIPT_TITLE), SV.T("Please select notes.")); return; }
+    if (!notes.length) {
+        SV.showMessageBox(SV.T(SCRIPT_TITLE), SV.T("Please select notes."));
+        return;
+    }
 
-    var group = SV.getMainEditor().getCurrentGroup().getTarget();
     var copies = [3,5,7,9][parseInt(r.answers.copies)];
     var pitchVar = [0,3,7,12][parseInt(r.answers.pitchVar)];
     var durationVar = [0,0.2,0.5,0.8][parseInt(r.answers.durationVar)];
@@ -37,6 +37,7 @@ function main() {
 
     for (var n = 0; n < notes.length; n++) {
         var original = notes[n];
+        var group = original.getParent();
         var onset = original.getEnd() + spacing;
         for (var i = 0; i < copies; i++) {
             var clone = original.clone ? original.clone() : SV.create("Note");
