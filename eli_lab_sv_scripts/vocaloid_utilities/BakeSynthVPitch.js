@@ -5,7 +5,7 @@ function getClientInfo() {
         name: SV.T(SCRIPT_TITLE),
         category: "eli_lab - VOCALOID Utilities",
         author: "eli_lab",
-        versionNumber: 4,
+        versionNumber: 5,
         minEditorVersion: 67840
     };
 }
@@ -24,8 +24,7 @@ function main() {
         message: "In SynthV Studio 1.x, switching Sing/Rap notes to Manual Mode moves their generated pitch into Pitch Deviation and freezes it.",
         buttons: "OkCancel",
         widgets: [
-            { name: "scope", type: "ComboBox", label: "Bake", choices: ["Selected notes", "Selected Auto notes only"], default: 1 },
-            { name: "confirm", type: "ComboBox", label: "Manual Mode", choices: ["Set selected Auto notes to Manual", "Do not change already Manual notes"], default: 0 }
+            { name: "scope", type: "ComboBox", label: "Bake", choices: ["Selected notes", "Selected Auto notes only"], default: 1 }
         ]
     });
     if (!r.status) return;
