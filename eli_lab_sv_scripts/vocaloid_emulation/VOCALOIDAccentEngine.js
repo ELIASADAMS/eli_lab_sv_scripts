@@ -1,12 +1,14 @@
 var SCRIPT_TITLE = "VOCALOID Accent Engine";
+var ANALYSIS_KEY = "eli_lab.vocaloid.analysis.v1";
+var MORA_KEY = "eli_lab.vocaloid.mora.v1";
 
 function getClientInfo() {
     return {
         name: SV.T(SCRIPT_TITLE),
         category: "eli_lab - VOCALOID Tuning Lab",
         author: "eli_lab",
-        versionNumber: 3,
-        minEditorVersion: 65537
+        versionNumber: 4,
+        minEditorVersion: 67840
     };
 }
 
@@ -21,6 +23,17 @@ function seedRandom(seed) {
     };
 }
 function rand(lo, hi) { return lo + RNG() * (hi - lo); }
+
+function getAnalysis(note) {
+    var data = note.getScriptData(ANALYSIS_KEY);
+    if (data && data.lyric === note.getLyrics() && data.version === 1) return data;
+    return null;
+}
+function getMoraClass(note) {
+    var m = note.getScriptData(MORA_KEY);
+    if (m && m.lyric === note.getLyrics()) return m.className;
+    return null;
+}
 function particle(s) { return ["は","が","を","に","へ","と","で","も","の","ね","よ","さ","ぞ","な","や"].indexOf(s) >= 0; }
 function weak(s) { return ["っ","ッ","ー","ん","ン","る","れ","ろ","す","つ","く","き"].indexOf(s) >= 0; }
 
@@ -32,7 +45,7 @@ function neighbor(note, offset) {
     return group.getNote(target);
 }
 
-function phraseScore(note, prev, next, isFirst, isLast) {
+function fallbackPhraseScore(note, prev, next, isFirst, isLast) {
     var q = SV.QUARTER;
     var d = note.getDuration();
     var s = 0.20 + clamp(d / (q * 2), 0, 1) * 0.28;
@@ -91,10 +104,11 @@ function main() {
         var n = notes[i];
         var prev = neighbor(n, -1);
         var next = neighbor(n, 1);
-        var isP = particle(n.getLyrics());
+        var data = getAnalysis(n);
+        var isP = data ? data.moraClass === "particle" : particle(n.getLyrics());
         if (isP && particleMode === 0) continue;
 
-        var s = phraseScore(n, prev, next, i === 0, i === notes.length - 1);
+        var s = data ? data.accent : fallbackPhraseScore(n, prev, next, i === 0, i === notes.length - 1);
         if (isP) s *= particleMode === 1 ? 0.25 : 0.60;
         if (n.getDuration() >= SV.QUARTER * 2.0) s *= [1, 1.10, 1.30][longMode];
         if (s <= 0.06) continue;
@@ -102,7 +116,7 @@ function main() {
         var amount = strength * s;
         var start = n.getOnset();
         var d = n.getDuration();
-        var direction = next && next.getPitch() > n.getPitch() ? 1 : next && next.getPitch() < n.getPitch() ? -1 : prev && n.getPitch() > prev.getPitch() ? 1 : -1;
+        var direction = data && data.nextInterval !== 0 ? (data.nextInterval > 0 ? 1 : -1) : (next && next.getPitch() > n.getPitch() ? 1 : next && next.getPitch() < n.getPitch() ? -1 : prev && n.getPitch() > prev.getPitch() ? 1 : -1);
         var auto = n.getParent().getParameter("pitchDelta");
 
         if (style === 0) {
