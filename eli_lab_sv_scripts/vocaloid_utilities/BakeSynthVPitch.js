@@ -5,7 +5,7 @@ function getClientInfo() {
         name: SV.T(SCRIPT_TITLE),
         category: "eli_lab - VOCALOID Utilities",
         author: "eli_lab",
-        versionNumber: 3,
+        versionNumber: 4,
         minEditorVersion: 67840
     };
 }
@@ -13,49 +13,45 @@ function getClientInfo() {
 function main() {
     var editor = SV.getMainEditor();
     var notes = editor.getSelection().getSelectedNotes();
-
     if (!notes.length) {
         SV.showMessageBox(SV.T(SCRIPT_TITLE), SV.T("Please select notes."));
         return;
     }
-
     notes.sort(function(a, b) { return a.getOnset() - b.getOnset(); });
 
-    var form = {
+    var r = SV.showCustomDialog({
         title: SV.T(SCRIPT_TITLE),
-        message: "SynthV 1.11 can bake the generated Sing/Rap pitch by switching notes to Manual Mode. The generated curve is moved into Pitch Deviation and becomes editable/stable.",
+        message: "In SynthV Studio 1.x, switching Sing/Rap notes to Manual Mode moves their generated pitch into Pitch Deviation and freezes it.",
         buttons: "OkCancel",
         widgets: [
-            { name: "scope", type: "ComboBox", label: "Notes", choices: ["Selected notes", "Selected notes that are Auto"], default: 1 },
-            { name: "mode", type: "ComboBox", label: "After baking", choices: ["Keep Manual", "Force Manual"], default: 1 }
+            { name: "scope", type: "ComboBox", label: "Bake", choices: ["Selected notes", "Selected Auto notes only"], default: 1 },
+            { name: "confirm", type: "ComboBox", label: "Manual Mode", choices: ["Set selected Auto notes to Manual", "Do not change already Manual notes"], default: 0 }
         ]
-    };
-    var r = SV.showCustomDialog(form);
+    });
     if (!r.status) return;
 
-    var autoCount = 0;
-    var bakedCount = 0;
     var onlyAuto = parseInt(r.answers.scope) === 1;
+    var baked = 0;
+    var skippedManual = 0;
 
     for (var i = 0; i < notes.length; i++) {
         var note = notes[i];
         var isAuto = note.getPitchAutoMode();
-        if (isAuto) autoCount++;
-        if (onlyAuto && !isAuto) continue;
-
-        // Synthesizer V Studio 1.11's supported bake operation:
-        // switching Auto -> Manual moves the generated pitch curve into
-        // Pitch Deviation and stops future pitch regeneration.
-        note.setPitchAutoMode(false);
-        bakedCount++;
+        if (!isAuto) {
+            skippedManual++;
+            continue;
+        }
+        if (!onlyAuto || isAuto) {
+            note.setPitchAutoMode(false);
+            baked++;
+        }
     }
 
     SV.showMessageBox(
         SV.T(SCRIPT_TITLE),
-        "Baked " + bakedCount + " note(s) into Manual Mode / Pitch Deviation.\n\n" +
-        "Auto notes found: " + autoCount + "\n\n" +
-        "The resulting curve is now safe to process with the Pitch Baker or VOCALOID Tuning Lab."
+        "Baked " + baked + " note(s) into Manual Mode / Pitch Deviation.\n\n" +
+        "Already Manual: " + skippedManual + "\n\n" +
+        "The frozen curve can now be processed by Pitch Baker or VOCALOID Tuning Lab."
     );
-
     SV.finish();
 }
