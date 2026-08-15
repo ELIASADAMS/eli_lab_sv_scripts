@@ -5,13 +5,12 @@ function getClientInfo() {
         name: SV.T(SCRIPT_TITLE),
         category: "eli_lab - VOCALOID Tuning Lab",
         author: "eli_lab",
-        versionNumber: 2,
+        versionNumber: 3,
         minEditorVersion: 67840
     };
 }
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-
 var RNG = Math.random;
 function seedRandom(seed) {
     var state = (parseInt(seed, 10) || 1) >>> 0;
@@ -37,15 +36,23 @@ function moraClass(s) {
     return "content";
 }
 
-function importance(note, prev, next, i, count) {
+function neighbor(note, offset) {
+    var group = note.getParent();
+    var index = note.getIndexInParent();
+    var target = index + offset;
+    if (target < 0 || target >= group.getNumNotes()) return null;
+    return group.getNote(target);
+}
+
+function importance(note, prev, next, isFirst, isLast) {
     var q = SV.QUARTER;
     var d = note.getDuration();
     var prevLeap = prev ? Math.abs(note.getPitch() - prev.getPitch()) : 0;
     var nextLeap = next ? Math.abs(next.getPitch() - note.getPitch()) : 0;
     var score = 0.24 + clamp(d / (q * 2.0), 0, 1) * 0.30;
     score += clamp(Math.max(prevLeap, nextLeap) / 7, 0, 1) * 0.30;
-    if (i === 0) score += 0.08;
-    if (i === count - 1) score += 0.12;
+    if (isFirst) score += 0.08;
+    if (isLast) score += 0.12;
     if (prev && prev.getPitch() === note.getPitch()) score -= 0.08;
     if (next && next.getPitch() === note.getPitch()) score += 0.06;
     if (moraClass(note.getLyrics()) === "particle") score -= 0.26;
@@ -53,19 +60,19 @@ function importance(note, prev, next, i, count) {
     return clamp(score, 0.04, 1.35);
 }
 
-function accentScore(note, prev, next, i, count) {
+function accentScore(note, prev, next, isFirst, isLast) {
     var q = SV.QUARTER;
     var d = note.getDuration();
-    var s = importance(note, prev, next, i, count);
+    var s = importance(note, prev, next, isFirst, isLast);
     if (d < q * 0.70) s += 0.12;
     if (prev && Math.abs(note.getPitch() - prev.getPitch()) >= 5) s += 0.16;
     if (next && Math.abs(next.getPitch() - note.getPitch()) >= 5) s += 0.20;
-    if (i === count - 1) s += 0.14;
+    if (isLast) s += 0.14;
     if (moraClass(note.getLyrics()) === "particle") s -= 0.30;
     return clamp(s, 0, 1.5);
 }
 
-function vibratoProbability(note, prev, next, i, count, coverage) {
+function vibratoProbability(note, prev, next, isLast, coverage) {
     var q = SV.QUARTER;
     var d = note.getDuration();
     var kind = moraClass(note.getLyrics());
@@ -78,16 +85,14 @@ function vibratoProbability(note, prev, next, i, count, coverage) {
     else if (d >= q * 1.5) p = 0.28;
     else p = 0.08;
 
-    p *= 0.62 + importance(note, prev, next, i, count) * 0.50;
+    p *= 0.62 + importance(note, prev, next, false, isLast) * 0.50;
     if (next && Math.abs(next.getPitch() - note.getPitch()) >= 5) p *= 0.68;
     if (prev && Math.abs(note.getPitch() - prev.getPitch()) >= 5) p *= 0.82;
     if (next && next.getPitch() === note.getPitch()) p *= 1.20;
     return clamp(p * coverage, 0, 0.98);
 }
 
-function addPoint(auto, t, v) {
-    auto.add(Math.round(t), clamp(v, -1200, 1200));
-}
+function addPoint(auto, t, v) { auto.add(Math.round(t), clamp(v, -1200, 1200)); }
 
 function addAttack(auto, note, prev, score, strength, extreme) {
     var start = note.getOnset();
@@ -149,13 +154,11 @@ function addVibrato(auto, note, depth, cycles, onset, extreme, instability) {
     addPoint(auto, end, 0);
 }
 
-function collectGroups(notes) {
+function uniqueGroups(notes) {
     var groups = [];
     for (var i = 0; i < notes.length; i++) {
-        var group = notes[i].getParent();
-        var found = false;
-        for (var j = 0; j < groups.length; j++) if (groups[j] === group) found = true;
-        if (!found) groups.push(group);
+        var g = notes[i].getParent();
+        if (groups.indexOf(g) < 0) groups.push(g);
     }
     return groups;
 }
@@ -170,13 +173,12 @@ function main() {
             { name: "accent", type: "ComboBox", label: "Accent intelligence", choices: ["Low", "Medium", "High", "Extreme"], default: 2 },
             { name: "vibrato", type: "ComboBox", label: "Vibrato coverage", choices: ["Sparse", "Classic", "Aggressive", "Off"], default: 1 },
             { name: "instability", type: "ComboBox", label: "Instability", choices: ["Low", "Medium", "High", "Extreme"], default: 2 },
-            { name: "clear", type: "ComboBox", label: "Clear existing Pitch Deviation", choices: ["Yes", "No"], default: 0 },
+            { name: "clear", type: "ComboBox", label: "Clear selected Pitch Deviation", choices: ["Yes", "No"], default: 0 },
             { name: "seed", type: "TextBox", label: "Seed", default: "2008" }
         ]
     };
     var r = SV.showCustomDialog(form);
     if (!r.status) return;
-
     seedRandom(r.answers.seed);
 
     var notes = SV.getMainEditor().getSelection().getSelectedNotes();
@@ -196,31 +198,25 @@ function main() {
     var vibCycles = [2, 2, 3, 3, 4][era];
     var vibOnset = [0.48, 0.45, 0.40, 0.32, 0.25][era];
     var coverage = [0.55, 0.85, 1.15, 0][vibMode];
-    var groups = collectGroups(notes);
 
     if (parseInt(r.answers.clear) === 0) {
-        for (var g = 0; g < groups.length; g++) {
-            var groupNotes = [];
-            for (var gn = 0; gn < notes.length; gn++) if (notes[gn].getParent() === groups[g]) groupNotes.push(notes[gn]);
-            if (groupNotes.length) {
-                groupNotes.sort(function(a, b) { return a.getOnset() - b.getOnset(); });
-                groups[g].getParameter("pitchDelta").remove(groupNotes[0].getOnset(), groupNotes[groupNotes.length - 1].getEnd());
-            }
+        for (var c = 0; c < notes.length; c++) {
+            notes[c].getParent().getParameter("pitchDelta").remove(notes[c].getOnset(), notes[c].getEnd());
         }
     }
 
     for (var i = 0; i < notes.length; i++) {
         var note = notes[i];
-        var prev = i ? notes[i - 1] : null;
-        var next = i + 1 < notes.length ? notes[i + 1] : null;
-        var imp = importance(note, prev, next, i, notes.length);
-        var acc = accentScore(note, prev, next, i, notes.length);
+        var prev = neighbor(note, -1);
+        var next = neighbor(note, 1);
+        var imp = importance(note, prev, next, i === 0, i === notes.length - 1);
+        var acc = accentScore(note, prev, next, i === 0, i === notes.length - 1);
         var auto = note.getParent().getParameter("pitchDelta");
 
         addAttack(auto, note, prev, imp, attackAmount, extreme);
         addAccent(auto, note, next, acc, accentLevel * 12, extreme);
 
-        if (vibMode !== 3 && RNG() < vibratoProbability(note, prev, next, i, notes.length, coverage)) {
+        if (vibMode !== 3 && RNG() < vibratoProbability(note, prev, next, i === notes.length - 1, coverage)) {
             addVibrato(auto, note, vibDepth, vibCycles, vibOnset, extreme, instability);
         }
 
